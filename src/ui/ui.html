@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8" />
+<style>
+  :root {
+    --bg: var(--figma-color-bg, #fff);
+    --bg2: var(--figma-color-bg-secondary, #f5f5f5);
+    --text: var(--figma-color-text, #1e1e1e);
+    --text2: var(--figma-color-text-secondary, #6b6b6b);
+    --border: var(--figma-color-border, #e6e6e6);
+    --brand: var(--figma-color-bg-brand, #0d99ff);
+    --brand-text: var(--figma-color-text-onbrand, #fff);
+    --danger: var(--figma-color-text-danger, #e03e1a);
+    --warn: var(--figma-color-text-warning, #b86200);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font: 11px/16px Inter, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: var(--text); background: var(--bg);
+    display: flex; flex-direction: column;
+  }
+  main { flex: 1; overflow: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; }
+  footer { border-top: 1px solid var(--border); padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+  .tabs { display: flex; gap: 4px; }
+  .tab {
+    flex: 1; border: 1px solid var(--border); background: var(--bg); color: var(--text);
+    border-radius: 6px; padding: 6px; font: inherit; font-weight: 500; cursor: pointer;
+  }
+  .tab[aria-selected="true"] { background: var(--bg2); border-color: var(--text2); }
+  .panel[hidden] { display: none; }
+  label.field { display: flex; flex-direction: column; gap: 4px; color: var(--text2); }
+  textarea, input[type="text"], input[type="url"], input[type="number"], select {
+    font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 8px; width: 100%;
+  }
+  textarea { font-family: "Roboto Mono", Menlo, monospace; min-height: 150px; resize: vertical; white-space: pre; }
+  .row { display: flex; gap: 8px; align-items: flex-end; }
+  .row > * { flex: 1; }
+  .row > .shrink { flex: 0 0 auto; }
+  button.primary, button.secondary {
+    font: inherit; font-weight: 600; border-radius: 6px; padding: 8px 12px; cursor: pointer; border: 1px solid transparent;
+  }
+  button.primary { background: var(--brand); color: var(--brand-text); }
+  button.secondary { background: var(--bg); color: var(--text); border-color: var(--border); }
+  button:disabled { opacity: .45; cursor: default; }
+  .drop {
+    border: 1px dashed var(--border); border-radius: 8px; padding: 18px; text-align: center; color: var(--text2); cursor: pointer;
+  }
+  .drop.over { border-color: var(--brand); color: var(--brand); }
+  details { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+  details summary { cursor: pointer; font-weight: 600; }
+  details .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  details .grid .full { grid-column: 1 / -1; }
+  .check { display: flex; gap: 6px; align-items: flex-start; color: var(--text); }
+  .check small { display: block; color: var(--text2); }
+  .preview-wrap { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; position: relative; background: var(--bg2); }
+  .preview-wrap .scaler { transform-origin: 0 0; }
+  .preview-wrap iframe { border: 0; display: block; background: #fff; }
+  .preview-empty { padding: 24px; text-align: center; color: var(--text2); }
+  .status { min-height: 16px; color: var(--text2); white-space: pre-wrap; word-break: break-word; }
+  .status.error { color: var(--danger); }
+  .progress { height: 3px; background: var(--bg2); border-radius: 2px; overflow: hidden; }
+  .progress > div { height: 100%; width: 0; background: var(--brand); transition: width .2s; }
+  .warnings { color: var(--warn); max-height: 90px; overflow: auto; margin: 0; padding-left: 16px; }
+  .presets { display: flex; gap: 4px; flex-wrap: wrap; }
+  .presets button { font: inherit; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 4px; padding: 2px 6px; cursor: pointer; }
+  .presets button.active { border-color: var(--brand); color: var(--brand); }
+</style>
+</head>
+<body>
+<main>
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="code" aria-selected="true">HTML код</button>
+    <button class="tab" role="tab" data-tab="file" aria-selected="false">Файл</button>
+    <button class="tab" role="tab" data-tab="url" aria-selected="false">URL</button>
+  </div>
+
+  <section class="panel" data-panel="code">
+    <label class="field">HTML (повний документ або фрагмент; можна з &lt;style&gt;)
+      <textarea id="html" spellcheck="false" placeholder="&lt;div class=&quot;card&quot;&gt;Hello&lt;/div&gt;"></textarea>
+    </label>
+  </section>
+
+  <section class="panel" data-panel="file" hidden>
+    <div class="drop" id="drop">Перетягніть .html файл сюди або натисніть, щоб вибрати
+      <input type="file" id="file" accept=".html,.htm,.xhtml,.svg,text/html" hidden />
+    </div>
+    <div class="status" id="fileInfo"></div>
+  </section>
+
+  <section class="panel" data-panel="url" hidden>
+    <div class="row">
+      <label class="field">Адреса сторінки
+        <input type="url" id="url" placeholder="https://example.com" />
+      </label>
+      <button class="secondary shrink" id="fetchUrl">Завантажити</button>
+    </div>
+    <div class="status">Сторінка завантажується з браузера Figma, тому сайт має дозволяти CORS
+      — або вкажіть CORS-проксі в розширених налаштуваннях.</div>
+  </section>
+
+  <div>
+    <div class="row" style="align-items:center;margin-bottom:6px">
+      <strong>Ширина вікна</strong>
+      <div class="presets shrink" id="presets">
+        <button data-w="1440" data-h="900">1440</button>
+        <button data-w="1280" data-h="800">1280</button>
+        <button data-w="768" data-h="1024">768</button>
+        <button data-w="390" data-h="844">390</button>
+      </div>
+    </div>
+    <div class="row">
+      <label class="field">Ширина, px<input type="number" id="vw" min="200" max="4000" value="1440" /></label>
+      <label class="field">Висота, px<input type="number" id="vh" min="200" max="8000" value="900" /></label>
+    </div>
+  </div>
+
+  <details>
+    <summary>Розширені налаштування</summary>
+    <div class="grid">
+      <label class="field full">Текст
+        <select id="textMode">
+          <option value="exact">Точний: переноси рядків як у браузері</option>
+          <option value="paragraph">Абзаци: текстові блоки з автопереносом (зручніше редагувати)</option>
+        </select>
+      </label>
+      <label class="check full"><input type="checkbox" id="autoLayout" />
+        <span>Flexbox → Auto Layout<small>Застосовується лише там, де результат збігається з браузером піксель-в-піксель</small></span></label>
+      <label class="check full"><input type="checkbox" id="flatten" />
+        <span>Прибрати порожні обгортки<small>div без фону/рамки/обрізання не створюють окремий шар</small></span></label>
+      <label class="check full"><input type="checkbox" id="scripts" />
+        <span>Виконувати JavaScript сторінки<small>Потрібно для сторінок, які рендеряться скриптами (React, Vue…)</small></span></label>
+      <label class="field full">Базовий URL для відносних посилань
+        <input type="url" id="baseUrl" placeholder="https://example.com/" />
+      </label>
+      <label class="field full">CORS-проксі (префікс, до нього додається закодований URL)
+        <input type="text" id="proxy" placeholder="https://corsproxy.io/?url=" />
+      </label>
+    </div>
+  </details>
+
+  <div>
+    <div class="row" style="align-items:center;margin-bottom:6px">
+      <strong>Попередній перегляд</strong>
+      <button class="secondary shrink" id="refresh">Оновити</button>
+    </div>
+    <div class="preview-wrap" id="previewWrap">
+      <div class="preview-empty" id="previewEmpty">Вставте HTML, щоб побачити сторінку</div>
+      <div class="scaler" id="scaler"></div>
+    </div>
+  </div>
+</main>
+<footer>
+  <div class="progress"><div id="bar"></div></div>
+  <div class="status" id="status"></div>
+  <ul class="warnings" id="warnings" hidden></ul>
+  <button class="primary" id="import" disabled>Імпортувати у Figma</button>
+</footer>
+<script>/*UI_SCRIPT*/</script>
+</body>
+</html>

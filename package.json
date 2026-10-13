@@ -1,0 +1,18 @@
+{
+  "name": "html-to-figma",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Figma plugin that converts HTML/CSS into editable Figma layers using the browser's real layout engine",
+  "license": "MIT",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "npm run build && node test/run.mjs"
+  },
+  "devDependencies": {
+    "@figma/plugin-typings": "^1.141.0",
+    "esbuild": "^0.25.12",
+    "typescript": "5.9"
+  }
+}

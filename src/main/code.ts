@@ -1,0 +1,49 @@
+import type { MainToUI, UIToMain } from '../shared/types';
+import { Builder } from './build';
+
+const send = (msg: MainToUI) => figma.ui.postMessage(msg);
+
+figma.showUI(__html__, { width: 440, height: 680, themeColors: true });
+
+figma.clientStorage.getAsync('settings').then((settings) => {
+  if (settings) send({ type: 'settings', settings });
+});
+
+let busy = false;
+
+figma.ui.onmessage = async (msg: UIToMain) => {
+  switch (msg.type) {
+    case 'resize':
+      figma.ui.resize(Math.round(msg.width), Math.round(msg.height));
+      return;
+    case 'save-settings':
+      await figma.clientStorage.setAsync('settings', msg.settings);
+      return;
+    case 'notify':
+      figma.notify(msg.message, { error: !!msg.error });
+      return;
+    case 'import': {
+      if (busy) return;
+      busy = true;
+      const started = Date.now();
+      try {
+        const builder = new Builder(msg.result, msg.options, (message, ratio) => send({ type: 'progress', message, ratio }));
+        const root = await builder.build();
+        figma.currentPage.selection = [root];
+        figma.viewport.scrollAndZoomIntoView([root]);
+        const warnings = [...msg.result.warnings, ...builder.warnings];
+        const secs = ((Date.now() - started) / 1000).toFixed(1);
+        const message = `Готово: «${root.name}» за ${secs} с`;
+        figma.notify(message);
+        send({ type: 'done', message, warnings });
+      } catch (e) {
+        const message = (e as Error)?.message || String(e);
+        figma.notify(`Помилка імпорту: ${message}`, { error: true });
+        send({ type: 'error', message });
+      } finally {
+        busy = false;
+      }
+      return;
+    }
+  }
+};
