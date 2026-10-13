@@ -155,6 +155,7 @@
       this.total = 0;
       this.warnings = [];
     }
+    /** Builds all frames; returns the top-level nodes to select. */
     async build() {
       this.progress("\u0421\u0442\u0432\u043E\u0440\u0435\u043D\u043D\u044F \u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u044C\u2026");
       for (const [id, bytes] of Object.entries(this.result.images)) {
@@ -165,19 +166,76 @@
         }
       }
       this.progress("\u0417\u0430\u0432\u0430\u043D\u0442\u0430\u0436\u0435\u043D\u043D\u044F \u0448\u0440\u0438\u0444\u0442\u0456\u0432\u2026");
-      await this.prepareFonts(this.result.root);
-      this.total = countNodes(this.result.root);
-      const root = figma.createFrame();
-      root.name = this.result.title;
-      root.resize(Math.max(1, this.result.root.w), Math.max(1, this.result.root.h));
-      root.fills = this.paints(this.result.root.fills);
-      root.clipsContent = true;
-      this.placeOnCanvas(root);
-      for (const child of this.result.root.children) await this.create(child, root, { x: 0, y: 0 }, false);
+      for (const f of this.result.frames) await this.prepareFonts(f);
+      this.total = this.result.frames.reduce((a, f) => a + countNodes(f), 0);
+      const roots = [];
+      for (const spec of this.result.frames) {
+        const root = figma.createFrame();
+        root.name = spec.name;
+        root.resize(Math.max(1, spec.w), Math.max(1, spec.h));
+        root.fills = this.paints(spec.fills);
+        root.clipsContent = true;
+        if (spec.radius) {
+          const [tl, tr, br, bl] = spec.radius;
+          Object.assign(root, { topLeftRadius: tl, topRightRadius: tr, bottomRightRadius: br, bottomLeftRadius: bl });
+        }
+        if (spec.stroke) this.applyStroke(root, spec.stroke);
+        for (const child of spec.children) await this.create(child, root, { x: spec.x, y: spec.y }, false);
+        roots.push(root);
+      }
       for (const [wanted, used] of this.fonts.missing) {
         this.warnings.push(`\u0428\u0440\u0438\u0444\u0442 \xAB${wanted}\xBB \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0438\u0439 \u0443 Figma \u2014 \u0432\u0438\u043A\u043E\u0440\u0438\u0441\u0442\u0430\u043D\u043E \xAB${used}\xBB.`);
       }
-      return root;
+      if (this.result.kind === "page") {
+        this.placeOnCanvas(roots[0]);
+        return roots;
+      }
+      if (figma.editorType === "slides") return this.toFigmaSlides(roots);
+      return [this.toSection(roots)];
+    }
+    /** Design files: slides laid out in a grid inside a section named after the deck. */
+    toSection(frames) {
+      const gap = 120;
+      const pad = 120;
+      const columns = Math.min(frames.length, frames.length <= 4 ? frames.length : 4);
+      const cellW = Math.max(...frames.map((f) => f.width));
+      const cellH = Math.max(...frames.map((f) => f.height));
+      const rows = Math.ceil(frames.length / columns);
+      const width = pad * 2 + columns * cellW + (columns - 1) * gap;
+      const height = pad * 2 + rows * cellH + (rows - 1) * gap;
+      let container;
+      try {
+        container = figma.createSection();
+        container.resizeWithoutConstraints(width, height);
+      } catch (e) {
+        container = figma.createFrame();
+        container.resize(width, height);
+        container.fills = [];
+      }
+      container.name = this.result.title;
+      frames.forEach((f, i) => {
+        container.appendChild(f);
+        f.x = pad + i % columns * (cellW + gap);
+        f.y = pad + Math.floor(i / columns) * (cellH + gap);
+      });
+      this.placeOnCanvas(container);
+      return container;
+    }
+    /** Figma Slides: one real slide per HTML slide, scaled to the 1920×1080 slide size. */
+    toFigmaSlides(frames) {
+      const out = [];
+      for (const f of frames) {
+        const slide = figma.createSlide();
+        slide.name = f.name;
+        const scale = Math.min(slide.width / f.width, slide.height / f.height);
+        if (Math.abs(scale - 1) > 1e-3) f.rescale(scale);
+        slide.appendChild(f);
+        f.x = (slide.width - f.width) / 2;
+        f.y = (slide.height - f.height) / 2;
+        slide.fills = f.fills;
+        out.push(slide);
+      }
+      return out;
     }
     placeOnCanvas(root) {
       let maxX = -Infinity;
@@ -488,12 +546,15 @@
         const started = Date.now();
         try {
           const builder = new Builder(msg.result, msg.options, (message2, ratio) => send({ type: "progress", message: message2, ratio }));
-          const root = await builder.build();
-          figma.currentPage.selection = [root];
-          figma.viewport.scrollAndZoomIntoView([root]);
+          const nodes = await builder.build();
+          if (figma.editorType !== "slides") figma.currentPage.selection = nodes;
+          figma.viewport.scrollAndZoomIntoView(nodes);
           const warnings = [...msg.result.warnings, ...builder.warnings];
           const secs = ((Date.now() - started) / 1e3).toFixed(1);
-          const message = `\u0413\u043E\u0442\u043E\u0432\u043E: \xAB${root.name}\xBB \u0437\u0430 ${secs} \u0441`;
+          const n = msg.result.frames.length;
+          const word = n % 10 === 1 && n % 100 !== 11 ? "\u0441\u043B\u0430\u0439\u0434" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? "\u0441\u043B\u0430\u0439\u0434\u0438" : "\u0441\u043B\u0430\u0439\u0434\u0456\u0432";
+          const what = msg.result.kind === "slides" ? `${n} ${word}` : `\xAB${msg.result.title}\xBB`;
+          const message = `\u0413\u043E\u0442\u043E\u0432\u043E: ${what} \u0437\u0430 ${secs} \u0441`;
           figma.notify(message);
           send({ type: "done", message, warnings });
         } catch (e) {

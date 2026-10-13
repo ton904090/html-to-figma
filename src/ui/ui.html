@@ -64,7 +64,7 @@
   .progress { height: 3px; background: var(--bg2); border-radius: 2px; overflow: hidden; }
   .progress > div { height: 100%; width: 0; background: var(--brand); transition: width .2s; }
   .warnings { color: var(--warn); max-height: 90px; overflow: auto; margin: 0; padding-left: 16px; }
-  .presets { display: flex; gap: 4px; flex-wrap: wrap; }
+  .presets { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
   .presets button { font: inherit; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 4px; padding: 2px 6px; cursor: pointer; }
   .presets button.active { border-color: var(--brand); color: var(--brand); }
 </style>
@@ -101,14 +101,24 @@
       — або вкажіть CORS-проксі в розширених налаштуваннях.</div>
   </section>
 
+  <label class="field">Що імпортувати
+    <select id="mode">
+      <option value="auto">Авто: сторінка або презентація</option>
+      <option value="page">Сторінка — один фрейм</option>
+      <option value="slides">Презентація — кожен слайд окремим фреймом</option>
+    </select>
+  </label>
+
   <div>
     <div class="row" style="align-items:center;margin-bottom:6px">
-      <strong>Ширина вікна</strong>
+      <strong>Розмір вікна</strong>
       <div class="presets shrink" id="presets">
         <button data-w="1440" data-h="900">1440</button>
         <button data-w="1280" data-h="800">1280</button>
         <button data-w="768" data-h="1024">768</button>
         <button data-w="390" data-h="844">390</button>
+        <button data-w="1920" data-h="1080" title="Слайди 16:9">1920×1080</button>
+        <button data-w="1280" data-h="720" title="Слайди 16:9">1280×720</button>
       </div>
     </div>
     <div class="row">
@@ -132,6 +142,9 @@
         <span>Прибрати порожні обгортки<small>div без фону/рамки/обрізання не створюють окремий шар</small></span></label>
       <label class="check full"><input type="checkbox" id="scripts" />
         <span>Виконувати JavaScript сторінки<small>Потрібно для сторінок, які рендеряться скриптами (React, Vue…)</small></span></label>
+      <label class="field full">CSS-селектор слайдів (якщо не знаходяться автоматично)
+        <input type="text" id="slideSelector" placeholder=".slide, section.page…" />
+      </label>
       <label class="field full">Базовий URL для відносних посилань
         <input type="url" id="baseUrl" placeholder="https://example.com/" />
       </label>

@@ -848,11 +848,19 @@ function collectChildren(el: Element, cs: CSSStyleDeclaration, ctx: Ctx, outerDi
 
 // ---------- entry ----------
 
-export function serializeDocument(
-  doc: Document,
-  ctx: Omit<Ctx, 'skipBackground' | 'afterLoad' | 'pending'>,
-): { root: FrameSpec; afterLoad: Array<() => void>; pending: Promise<void>[] } {
-  const full: Ctx = { ...ctx, skipBackground: new Set(), afterLoad: [], pending: [] };
+export function createContext(base: Omit<Ctx, 'skipBackground' | 'afterLoad' | 'pending'>): Ctx {
+  return { ...base, skipBackground: new Set(), afterLoad: [], pending: [] };
+}
+
+/** The element whose background is painted on the whole canvas (html, or body if html has none). */
+function canvasElement(doc: Document): Element {
+  const html = doc.documentElement;
+  const htmlCs = getComputedStyle(html);
+  if (!isVisibleColor(parseColor(htmlCs.backgroundColor)) && htmlCs.backgroundImage === 'none' && doc.body) return doc.body;
+  return html;
+}
+
+export function serializeDocument(doc: Document, full: Ctx): FrameSpec {
   const html = doc.documentElement;
   const body = doc.body;
   const htmlCs = getComputedStyle(html);
@@ -861,18 +869,12 @@ export function serializeDocument(
   const height = Math.max(
     html.scrollHeight, body?.scrollHeight ?? 0, html.getBoundingClientRect().height, full.opts.viewportHeight,
   );
-  // Canvas background propagation (html → canvas, or body → canvas if html is transparent).
-  let canvasEl: Element = html;
-  let canvasCs = htmlCs;
-  if (!isVisibleColor(parseColor(htmlCs.backgroundColor)) && htmlCs.backgroundImage === 'none' && body) {
-    canvasEl = body;
-    canvasCs = getComputedStyle(body);
-  }
+  const canvasEl = canvasElement(doc);
   const root: FrameSpec = {
     kind: 'frame', tag: 'html', name: doc.title || 'HTML page', x: 0, y: 0, w: vw, h: Math.ceil(height),
     fills: [], clip: true, children: [],
   };
-  const canvasFills = backgroundFills(canvasEl, canvasCs, { x: 0, y: 0, w: vw, h: root.h }, root, full);
+  const canvasFills = backgroundFills(canvasEl, getComputedStyle(canvasEl), { x: 0, y: 0, w: vw, h: root.h }, root, full);
   root.fills = [{ type: 'solid', color: { r: 1, g: 1, b: 1, a: 1 } }, ...canvasFills];
   full.skipBackground.add(canvasEl);
 
@@ -880,7 +882,44 @@ export function serializeDocument(
   const htmlFrame = makeFrame(html, htmlCs, full);
   const kids = paintOrder(collectChildren(html, htmlCs, full));
   root.children.push(...htmlFrame.children, ...kids);
-  return { root, afterLoad: full.afterLoad, pending: full.pending };
+  return root;
+}
+
+/**
+ * Serializes one element (a slide) as a standalone root frame. Its own background is kept;
+ * where it is transparent the page canvas background shows through, as on screen.
+ */
+export function serializeSubtree(el: Element, full: Ctx, name: string): FrameSpec {
+  const parentDisplay = el.parentElement ? getComputedStyle(el.parentElement).display : 'block';
+  const box = boxOf(el, full);
+  const visit = visitElement(el, full, parentDisplay);
+  let root: FrameSpec;
+  const first = visit.nodes[0];
+  if (visit.nodes.length === 1 && first.kind === 'frame') {
+    root = first;
+  } else {
+    root = { kind: 'frame', tag: el.tagName.toLowerCase(), name, ...box, fills: [], clip: true, children: visit.nodes };
+  }
+  root.name = name;
+  root.clip = true;
+  delete root.outOfFlow;
+  delete root.opacity;
+  // Negative z-index content of the slide sits right above the canvas background.
+  root.children.unshift(...paintOrder(visit.hoisted));
+
+  const opaque = root.fills.some((f) => f.type !== 'solid' || f.color.a >= 0.999);
+  if (!opaque) {
+    const canvasEl = canvasElement(el.ownerDocument);
+    const underlay: FillSpec[] = [{ type: 'solid', color: { r: 1, g: 1, b: 1, a: 1 } }];
+    if (canvasEl !== el) {
+      const holder: FrameSpec = { ...root, children: [] };
+      underlay.push(...backgroundFills(canvasEl, getComputedStyle(canvasEl), { x: root.x, y: root.y, w: root.w, h: root.h }, holder, full));
+    }
+    root.fills = [...underlay, ...root.fills];
+  }
+  // Rounded / shadowed slides: the frame is the slide itself, so drop page-level effects.
+  delete root.shadows;
+  return root;
 }
 
 export type { Ctx };

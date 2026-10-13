@@ -318,6 +318,14 @@
     clientStorage: { async getAsync() { return undefined; }, async setAsync() {} },
     notify(m) { console.log('[figma.notify]', m); },
     createFrame: makeFrame,
+    createSection() {
+      const n = new Node('SECTION');
+      n._fills = [];
+      n.resizeWithoutConstraints = (w, h) => n.resize(w, h);
+      page.appendChild(n);
+      return n;
+    },
+    editorType: 'figma',
     createRectangle() { const n = new Node('RECTANGLE'); n._fills = [{ type: 'SOLID', color: { r: 0.85, g: 0.85, b: 0.85 } }]; n._paint(); page.appendChild(n); return n; },
     createText() { const n = new TextNode(); page.appendChild(n); return n; },
     createNodeFromSvg(svg) {

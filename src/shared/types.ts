@@ -157,13 +157,17 @@ export interface CaptureOptions {
   autoLayout: boolean;
   flattenWrappers: boolean;
   corsProxy: string;
+  /** 'auto' detects HTML presentations; 'slides' forces one frame per slide */
+  mode: 'auto' | 'page' | 'slides';
+  /** optional CSS selector for the slides */
+  slideSelector: string;
 }
 
 export interface CaptureResult {
+  kind: 'page' | 'slides';
   title: string;
-  width: number;
-  height: number;
-  root: FrameSpec;
+  /** one frame for a page, one per slide for a presentation (absolute document coordinates) */
+  frames: FrameSpec[];
   images: Record<string, Uint8Array>;
   warnings: string[];
 }

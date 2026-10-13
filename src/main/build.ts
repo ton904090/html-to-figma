@@ -25,7 +25,8 @@ export class Builder {
     private progress: (message: string, ratio?: number) => void,
   ) {}
 
-  async build(): Promise<FrameNode> {
+  /** Builds all frames; returns the top-level nodes to select. */
+  async build(): Promise<SceneNode[]> {
     this.progress('Створення зображень…');
     for (const [id, bytes] of Object.entries(this.result.images)) {
       try {
@@ -36,25 +37,87 @@ export class Builder {
     }
 
     this.progress('Завантаження шрифтів…');
-    await this.prepareFonts(this.result.root);
+    for (const f of this.result.frames) await this.prepareFonts(f);
 
-    this.total = countNodes(this.result.root);
-    const root = figma.createFrame();
-    root.name = this.result.title;
-    root.resize(Math.max(1, this.result.root.w), Math.max(1, this.result.root.h));
-    root.fills = this.paints(this.result.root.fills);
-    root.clipsContent = true;
-    this.placeOnCanvas(root);
-
-    for (const child of this.result.root.children) await this.create(child, root, { x: 0, y: 0 }, false);
+    this.total = this.result.frames.reduce((a, f) => a + countNodes(f), 0);
+    const roots: FrameNode[] = [];
+    for (const spec of this.result.frames) {
+      const root = figma.createFrame();
+      root.name = spec.name;
+      root.resize(Math.max(1, spec.w), Math.max(1, spec.h));
+      root.fills = this.paints(spec.fills);
+      root.clipsContent = true;
+      if (spec.radius) {
+        const [tl, tr, br, bl] = spec.radius;
+        Object.assign(root, { topLeftRadius: tl, topRightRadius: tr, bottomRightRadius: br, bottomLeftRadius: bl });
+      }
+      if (spec.stroke) this.applyStroke(root, spec.stroke);
+      // Children positions are relative to the frame's own document position.
+      for (const child of spec.children) await this.create(child, root, { x: spec.x, y: spec.y }, false);
+      roots.push(root);
+    }
 
     for (const [wanted, used] of this.fonts.missing) {
       this.warnings.push(`Шрифт «${wanted}» недоступний у Figma — використано «${used}».`);
     }
-    return root;
+
+    if (this.result.kind === 'page') {
+      this.placeOnCanvas(roots[0]);
+      return roots;
+    }
+    if (figma.editorType === 'slides') return this.toFigmaSlides(roots);
+    return [this.toSection(roots)];
   }
 
-  private placeOnCanvas(root: FrameNode) {
+  /** Design files: slides laid out in a grid inside a section named after the deck. */
+  private toSection(frames: FrameNode[]): SceneNode {
+    const gap = 120;
+    const pad = 120;
+    const columns = Math.min(frames.length, frames.length <= 4 ? frames.length : 4);
+    const cellW = Math.max(...frames.map((f) => f.width));
+    const cellH = Math.max(...frames.map((f) => f.height));
+    const rows = Math.ceil(frames.length / columns);
+    const width = pad * 2 + columns * cellW + (columns - 1) * gap;
+    const height = pad * 2 + rows * cellH + (rows - 1) * gap;
+    let container: SectionNode | FrameNode;
+    try {
+      container = figma.createSection();
+      container.resizeWithoutConstraints(width, height);
+    } catch {
+      // Older editors without sections: a plain frame works the same way.
+      container = figma.createFrame();
+      container.resize(width, height);
+      container.fills = [];
+    }
+    container.name = this.result.title;
+    frames.forEach((f, i) => {
+      container.appendChild(f);
+      f.x = pad + (i % columns) * (cellW + gap);
+      f.y = pad + Math.floor(i / columns) * (cellH + gap);
+    });
+    this.placeOnCanvas(container);
+    return container;
+  }
+
+  /** Figma Slides: one real slide per HTML slide, scaled to the 1920×1080 slide size. */
+  private toFigmaSlides(frames: FrameNode[]): SceneNode[] {
+    const out: SceneNode[] = [];
+    for (const f of frames) {
+      const slide = figma.createSlide();
+      slide.name = f.name;
+      const scale = Math.min(slide.width / f.width, slide.height / f.height);
+      if (Math.abs(scale - 1) > 0.001) f.rescale(scale);
+      slide.appendChild(f);
+      f.x = (slide.width - f.width) / 2;
+      f.y = (slide.height - f.height) / 2;
+      // Let the slide carry the background so it shows in the slide grid / presenter.
+      slide.fills = f.fills;
+      out.push(slide);
+    }
+    return out;
+  }
+
+  private placeOnCanvas(root: SceneNode) {
     let maxX = -Infinity;
     let minY = Infinity;
     for (const n of figma.currentPage.children) {

@@ -127,9 +127,10 @@ function cssTextOf(cs: CSSStyleDeclaration): string {
   return out;
 }
 
-export function materializePseudoElements(doc: Document): void {
+export function materializePseudoElements(doc: Document, root?: Element): void {
   const jobs: PseudoJob[] = [];
-  const all = doc.body ? doc.body.querySelectorAll('*') : [];
+  const scope = root ?? doc.body;
+  const all = scope ? [...(root ? [root] : []), ...scope.querySelectorAll('*')] : [];
   // 1) read phase
   for (const el of all) {
     if (NO_PSEUDO.has(el.tagName) || el.closest('svg')) continue;
@@ -190,5 +191,8 @@ export function materializePseudoElements(doc: Document): void {
       job.el.setAttribute(`data-h2f-${job.where}`, '');
     }
   }
-  doc.head.appendChild(style);
+  if (!doc.querySelector('style[data-h2f-pseudo]')) {
+    style.setAttribute('data-h2f-pseudo', '');
+    doc.head.appendChild(style);
+  }
 }

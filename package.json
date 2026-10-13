@@ -8,7 +8,7 @@
     "build": "node scripts/build.mjs",
     "watch": "node scripts/build.mjs --watch",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "npm run build && node test/run.mjs"
+    "test": "npm run build && node test/run.mjs && node test/decks.mjs"
   },
   "devDependencies": {
     "@figma/plugin-typings": "^1.141.0",

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Reveal-style deck</title>
+<style>
+  body { margin: 0; background: #111; font-family: Inter, sans-serif; }
+  .reveal { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+  .reveal .slides { position: absolute; width: 960px; height: 540px; left: 50%; top: 50%; margin: -270px 0 0 -480px; zoom: 0.9; }
+  .reveal .slides section { position: absolute; inset: 0; display: none; padding: 48px; box-sizing: border-box; background: #fdfcf7; color: #222; }
+  .reveal .slides > section.stack { background: none; padding: 0; }
+  .reveal .slides section.present { display: block; }
+  .reveal .slides section.past { transform: translateX(-100%); }
+  .fragment { opacity: 0; transition: opacity .3s; }
+  .fragment.visible { opacity: 1; }
+  h2 { font-size: 40px; margin: 0 0 24px; font-family: "Liberation Serif", serif; }
+  li { font-size: 24px; margin-bottom: 12px; }
+  .box { display: inline-block; padding: 12px 20px; background: #fde68a; border-radius: 8px; font-size: 22px; }
+</style></head>
+<body>
+<div class="reveal"><div class="slides">
+  <section class="present"><h2>Вступ</h2><ul><li>Перший пункт</li><li class="fragment">Пункт-фрагмент</li></ul></section>
+  <section class="stack">
+    <section><h2>Вертикальний 1</h2><span class="box">Вкладений слайд</span></section>
+    <section><h2>Вертикальний 2</h2><p class="fragment" style="font-size:24px">Прихований до кліку текст</p></section>
+  </section>
+  <section><h2>Кінець</h2></section>
+</div></div>
+</body></html>

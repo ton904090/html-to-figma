@@ -28,12 +28,15 @@ figma.ui.onmessage = async (msg: UIToMain) => {
       const started = Date.now();
       try {
         const builder = new Builder(msg.result, msg.options, (message, ratio) => send({ type: 'progress', message, ratio }));
-        const root = await builder.build();
-        figma.currentPage.selection = [root];
-        figma.viewport.scrollAndZoomIntoView([root]);
+        const nodes = await builder.build();
+        if (figma.editorType !== 'slides') figma.currentPage.selection = nodes;
+        figma.viewport.scrollAndZoomIntoView(nodes);
         const warnings = [...msg.result.warnings, ...builder.warnings];
         const secs = ((Date.now() - started) / 1000).toFixed(1);
-        const message = `Готово: «${root.name}» за ${secs} с`;
+        const n = msg.result.frames.length;
+        const word = n % 10 === 1 && n % 100 !== 11 ? 'слайд' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'слайди' : 'слайдів';
+        const what = msg.result.kind === 'slides' ? `${n} ${word}` : `«${msg.result.title}»`;
+        const message = `Готово: ${what} за ${secs} с`;
         figma.notify(message);
         send({ type: 'done', message, warnings });
       } catch (e) {
