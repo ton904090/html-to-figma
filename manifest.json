@@ -1,0 +1,13 @@
+{
+  "name": "HTML to Figma",
+  "id": "html-to-figma-local",
+  "api": "1.0.0",
+  "main": "dist/code.js",
+  "ui": "dist/ui.html",
+  "editorType": ["figma", "slides"],
+  "documentAccess": "dynamic-page",
+  "networkAccess": {
+    "allowedDomains": ["*"],
+    "reasoning": "The HTML being imported can reference stylesheets, web fonts and images hosted on any domain; they must be loaded to render the page exactly."
+  }
+}

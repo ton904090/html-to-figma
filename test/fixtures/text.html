@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Text torture</title>
+<style>
+  body { margin: 24px; font: 16px/1.5 Inter, sans-serif; color: #222; width: 640px; }
+  .justify { text-align: justify; }
+  .indent { text-indent: 40px; }
+  .right { text-align: right; }
+  .center { text-align: center; }
+  pre { font: 13px/1.4 "Liberation Mono", monospace; background: #f4f4f8; padding: 12px; border-radius: 6px; }
+  mark { background: #ffe58a; padding: 0 4px; border-radius: 3px; }
+  .pill { background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 999px; font-size: 13px; font-weight: 600; }
+  .float { float: left; width: 120px; height: 90px; margin: 4px 16px 8px 0; background: linear-gradient(45deg,#fda4af,#93c5fd); border-radius: 8px; }
+  .serif { font-family: "Liberation Serif", serif; font-size: 20px; line-height: 1.3; }
+  .big { font-size: 28px; font-weight: 700; }
+  .ls { letter-spacing: 3px; text-transform: uppercase; font-size: 12px; }
+  .nowrap { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 300px; border: 1px solid #ddd; padding: 4px; }
+  .cols { display: flex; gap: 16px; } .cols > p { flex: 1; margin: 0; }
+  h2 { font-size: 22px; margin: 18px 0 8px; }
+  .shadow { font-size: 32px; font-weight: 800; color: #4f46e5; text-shadow: 2px 2px 0 #c7d2fe; }
+  img.icon { width: 18px; height: 18px; vertical-align: middle; border-radius: 4px; }
+</style></head>
+<body>
+<h2>Justified paragraph</h2>
+<p class="justify">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer posuere erat a ante venenatis dapibus posuere velit aliquet. Vestibulum id ligula porta felis euismod semper. Donec ullamcorper nulla non metus auctor fringilla.</p>
+<p class="indent">Text with an indent on the first line wraps to several lines so the first line starts further to the right than the following ones. <mark>Highlighted text that wraps across the line boundary into the next line</mark> and continues afterwards.</p>
+<p class="right">Right aligned text that is long enough to wrap onto a second line of the right aligned paragraph.</p>
+<p class="center">Centered <span class="pill">badge</span> inside a line, then an inline <img class="icon" src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Crect width='10' height='10' fill='%2322c55e'/%3E%3C/svg%3E"> icon and H<sub>2</sub>O plus E=mc<sup>2</sup>.</p>
+<div class="float"></div>
+<p class="serif">Serif text flowing around a floated box. The first lines are shorter because the float occupies the left side, and further lines go back to full width after the float ends, which tests per-line anchoring.</p>
+<p class="big">Bold big text <em>with italic</em> and <a href="https://example.com">a link</a>.</p>
+<p class="ls">Tracked uppercase label</p>
+<div class="nowrap">This line is very long and gets truncated with ellipsis at the end</div>
+<pre>function hello(name) {
+    return `Hello, ${name}!`;   // keeps    spaces
+
+
+}</pre>
+<div class="cols"><p>Column one has some text that wraps.</p><p>Column two<br>with a forced<br>break.</p></div>
+<p class="shadow">Text shadow</p>
+</body></html>

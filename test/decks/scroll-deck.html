@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Scroll deck</title>
+<style>
+  body { margin: 0; font-family: Inter, sans-serif; }
+  html { scroll-snap-type: y mandatory; }
+  section { width: 100vw; height: 100vh; scroll-snap-align: start; display: flex; flex-direction: column; justify-content: center; padding: 0 10vw; box-sizing: border-box; }
+  section:nth-child(odd) { background: #fff7ed; color: #7c2d12; }
+  section:nth-child(even) { background: #ecfeff; color: #164e63; }
+  h1 { font-size: 7vw; margin: 0; } h2 { font-size: 4vw; margin: 0 0 2vw; }
+  p { font-size: 1.8vw; line-height: 1.5; max-width: 60vw; }
+  .tag { display: inline-block; padding: .4vw 1vw; border-radius: 99px; background: #fed7aa; font-weight: 700; font-size: 1.2vw; width: max-content; margin-bottom: 1.5vw; }
+</style></head>
+<body>
+<section><span class="tag">Стратегія 2027</span><h1>Три пріоритети</h1></section>
+<section><h2>1. Якість</h2><p>Зменшити кількість інцидентів удвічі завдяки автоматизованому тестуванню і спостережуваності.</p></section>
+<section><h2>2. Швидкість</h2><p>Релізи щотижня замість щомісяця.</p></section>
+</body></html>

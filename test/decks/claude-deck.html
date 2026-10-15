@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Q3 Product Review</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root { --bg: #0f172a; --card: #1e293b; --accent: #38bdf8; --accent2: #a78bfa; --text: #f1f5f9; --muted: #94a3b8; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #020617; font-family: Inter, system-ui, sans-serif; }
+  .deck { position: absolute; left: 50%; top: 50%; width: 1280px; height: 720px; transform-origin: center center; }
+  .slide { position: absolute; inset: 0; background: var(--bg); color: var(--text); padding: 72px 88px; opacity: 0; visibility: hidden; transition: opacity .5s ease; overflow: hidden; }
+  .slide.active { opacity: 1; visibility: visible; }
+  .slide.active .reveal-up { animation: up .7s ease both; }
+  @keyframes up { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: none; } }
+  .title-slide { display: flex; flex-direction: column; justify-content: center; background: radial-gradient(circle at 80% 20%, #1e3a8a 0%, transparent 50%), linear-gradient(135deg, #0f172a, #1e1b4b); }
+  .kicker { color: var(--accent); font-size: 18px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; margin-bottom: 20px; }
+  h1 { font-size: 72px; line-height: 1.05; font-weight: 800; letter-spacing: -0.02em; }
+  h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  h2 { font-size: 44px; font-weight: 700; margin-bottom: 36px; }
+  .subtitle { font-size: 24px; color: var(--muted); margin-top: 24px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  .stat { background: var(--card); border-radius: 16px; padding: 28px; border: 1px solid #334155; }
+  .stat .num { font-size: 56px; font-weight: 800; color: var(--accent); }
+  .stat .label { color: var(--muted); font-size: 18px; margin-top: 8px; }
+  .stat .delta { display: inline-block; margin-top: 16px; padding: 4px 10px; border-radius: 999px; background: rgba(34,197,94,.15); color: #4ade80; font-weight: 600; font-size: 14px; }
+  ul.points { list-style: none; }
+  ul.points li { font-size: 26px; line-height: 1.4; padding-left: 40px; position: relative; margin-bottom: 22px; }
+  ul.points li::before { content: ""; position: absolute; left: 0; top: 12px; width: 14px; height: 14px; border-radius: 4px; background: linear-gradient(135deg, var(--accent), var(--accent2)); }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
+  .chart { background: var(--card); border-radius: 16px; padding: 24px; }
+  .footer { position: absolute; left: 88px; right: 88px; bottom: 36px; display: flex; justify-content: space-between; color: #475569; font-size: 14px; }
+  .nav { position: fixed; bottom: 20px; right: 24px; display: flex; gap: 8px; z-index: 10; }
+  .nav button { width: 40px; height: 40px; border-radius: 50%; border: 0; background: #1e293b; color: #fff; font-size: 18px; }
+  .progress { position: fixed; top: 0; left: 0; height: 4px; background: var(--accent); }
+  .counter { position: fixed; bottom: 28px; left: 24px; color: #64748b; font-size: 14px; }
+  blockquote { font-size: 40px; line-height: 1.3; font-weight: 600; max-width: 980px; }
+  .author { margin-top: 32px; color: var(--muted); font-size: 22px; }
+</style>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<div class="deck" id="deck">
+  <section class="slide title-slide active">
+    <div class="kicker reveal-up">Квартальний огляд · Q3 2026</div>
+    <h1 class="reveal-up">Продукт росте <span>швидше за ринок</span></h1>
+    <p class="subtitle reveal-up">Ключові метрики, досягнення і план на наступний квартал</p>
+    <div class="footer"><span>Product Team</span><span>1</span></div>
+  </section>
+  <section class="slide">
+    <h2>Ключові метрики</h2>
+    <div class="grid">
+      <div class="stat reveal-up"><div class="num">2.4M</div><div class="label">Активних користувачів</div><span class="delta">▲ 18%</span></div>
+      <div class="stat reveal-up"><div class="num">$8.1M</div><div class="label">Річний дохід (ARR)</div><span class="delta">▲ 32%</span></div>
+      <div class="stat reveal-up"><div class="num">94%</div><div class="label">Утримання клієнтів</div><span class="delta">▲ 3 п.п.</span></div>
+    </div>
+    <div class="footer"><span>Product Team</span><span>2</span></div>
+  </section>
+  <section class="slide">
+    <div class="two">
+      <div>
+        <h2>Що ми запустили</h2>
+        <ul class="points">
+          <li>Новий онбординг — конверсія +27%</li>
+          <li>Командні робочі простори</li>
+          <li>Інтеграції зі Slack та Notion</li>
+        </ul>
+      </div>
+      <div class="chart">
+        <svg viewBox="0 0 400 260" width="100%">
+          <g fill="#38bdf8"><rect x="20" y="160" width="50" height="80" rx="6"/><rect x="100" y="120" width="50" height="120" rx="6"/><rect x="180" y="90" width="50" height="150" rx="6"/></g>
+          <rect x="260" y="40" width="50" height="200" rx="6" fill="#a78bfa"/>
+          <line x1="10" y1="240" x2="390" y2="240" stroke="#475569" stroke-width="2"/>
+          <text x="45" y="258" fill="#94a3b8" font-size="12" text-anchor="middle">Q1</text>
+          <text x="285" y="258" fill="#94a3b8" font-size="12" text-anchor="middle">Q4</text>
+        </svg>
+      </div>
+    </div>
+    <div class="footer"><span>Product Team</span><span>3</span></div>
+  </section>
+  <section class="slide" style="display:flex;flex-direction:column;justify-content:center;background:linear-gradient(135deg,#312e81,#0f172a)">
+    <blockquote>«Найкращий продукт — той, який люди рекомендують друзям без прохання.»</blockquote>
+    <div class="author">— з інтерв'ю з клієнтом</div>
+    <div class="footer"><span>Product Team</span><span>4</span></div>
+  </section>
+</div>
+<div class="counter" id="counter">1 / 4</div>
+<div class="nav"><button onclick="go(-1)">‹</button><button onclick="go(1)">›</button></div>
+<script>
+  const slides = [...document.querySelectorAll('.slide')];
+  let i = 0;
+  function fit() {
+    const s = Math.min(innerWidth / 1280, innerHeight / 720);
+    document.getElementById('deck').style.transform = `translate(-50%, -50%) scale(${s})`;
+  }
+  function go(d) {
+    slides[i].classList.remove('active');
+    i = Math.max(0, Math.min(slides.length - 1, i + d));
+    slides[i].classList.add('active');
+    document.getElementById('counter').textContent = `${i + 1} / ${slides.length}`;
+    document.getElementById('progress').style.width = `${((i + 1) / slides.length) * 100}%`;
+  }
+  addEventListener('resize', fit);
+  addEventListener('keydown', (e) => { if (e.key === 'ArrowRight') go(1); if (e.key === 'ArrowLeft') go(-1); });
+  fit(); go(0);
+</script>
+</body>
+</html>
