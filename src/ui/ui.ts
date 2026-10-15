@@ -1,4 +1,5 @@
 import type { CaptureOptions, CaptureResult, MainToUI } from '../shared/types';
+import { DEMO_HTML } from './demo';
 
 declare const CAPTURE_SCRIPT: string;
 
@@ -8,7 +9,15 @@ const els = {
   html: $<HTMLTextAreaElement>('html'),
   file: $<HTMLInputElement>('file'),
   drop: $('drop'),
-  fileInfo: $('fileInfo'),
+  demo: $<HTMLButtonElement>('demo'),
+  codeEditor: $('codeEditor'),
+  urlEditor: $('urlEditor'),
+  sourceChip: $('sourceChip'),
+  sourceName: $('sourceName'),
+  sourceMeta: $('sourceMeta'),
+  sourceHint: $('sourceHint'),
+  editCode: $<HTMLButtonElement>('editCode'),
+  clear: $<HTMLButtonElement>('clear'),
   url: $<HTMLInputElement>('url'),
   fetchUrl: $<HTMLButtonElement>('fetchUrl'),
   vw: $<HTMLInputElement>('vw'),
@@ -16,6 +25,8 @@ const els = {
   presets: $('presets'),
   textMode: $<HTMLSelectElement>('textMode'),
   mode: $<HTMLSelectElement>('mode'),
+  modeHint: $('modeHint'),
+  textHint: $('textHint'),
   slideSelector: $<HTMLInputElement>('slideSelector'),
   autoLayout: $<HTMLInputElement>('autoLayout'),
   flatten: $<HTMLInputElement>('flatten'),
@@ -23,13 +34,24 @@ const els = {
   baseUrl: $<HTMLInputElement>('baseUrl'),
   proxy: $<HTMLInputElement>('proxy'),
   refresh: $<HTMLButtonElement>('refresh'),
+  previewSection: $('previewSection'),
   previewWrap: $('previewWrap'),
-  previewEmpty: $('previewEmpty'),
   scaler: $('scaler'),
-  bar: $('bar'),
+  shimmer: $('shimmer'),
+  kindBadge: $('kindBadge'),
+  kindText: $('kindText'),
+  sizeBadge: $('sizeBadge'),
+  steps: $('steps'),
   status: $('status'),
+  result: $('result'),
+  resultText: $('resultText'),
+  warnBox: $<HTMLDetailsElement>('warnBox'),
+  warnCount: $('warnCount'),
   warnings: $('warnings'),
   import: $<HTMLButtonElement>('import'),
+  importLabel: $('importLabel'),
+  dropOverlay: $('dropOverlay'),
+  grip: $('grip') as unknown as SVGElement,
 };
 
 let source = '';
@@ -38,6 +60,10 @@ let ready = false;
 let capturing = false;
 /** viewport was switched to 1920×1080 automatically for a viewport-sized deck */
 let autoSized = false;
+/** where the current source came from, for the source chip */
+let sourceLabel = { name: '', origin: '' };
+/** last detection result from the rendered page */
+let detected: { slides: { count: number; width: number; height: number } | null; height: number; title: string } | null = null;
 
 // ---------- messaging ----------
 
@@ -45,20 +71,50 @@ function toMain(msg: unknown) {
   parent.postMessage({ pluginMessage: msg }, '*');
 }
 
-function setStatus(text: string, error = false, ratio?: number) {
+function setStatus(text: string, kind: 'info' | 'error' | 'ok' = 'info') {
   els.status.textContent = text;
-  els.status.classList.toggle('error', error);
-  if (ratio !== undefined) els.bar.style.width = `${Math.round(ratio * 100)}%`;
+  els.status.classList.toggle('error', kind === 'error');
+  els.status.classList.toggle('ok', kind === 'ok');
+}
+
+/** Import pipeline progress: 0 render, 1 analysis, 2 images, 3 layers. */
+function setStep(step: number, ratio = 0) {
+  els.steps.hidden = step < 0;
+  for (const el of els.steps.querySelectorAll<HTMLElement>('.step')) {
+    const i = Number(el.dataset.step);
+    el.classList.toggle('done', i < step);
+    el.classList.toggle('active', i === step);
+    const bar = el.querySelector<HTMLElement>('.bar i')!;
+    bar.style.width = i < step ? '100%' : i === step ? `${Math.max(8, Math.round(ratio * 100))}%` : '0';
+  }
+}
+
+function setBusy(busy: boolean) {
+  capturing = busy;
+  els.import.classList.toggle('busy', busy);
+  els.import.disabled = busy || !ready;
+  const spinner = els.import.querySelector('.spinner');
+  if (busy && !spinner) els.import.insertAdjacentHTML('afterbegin', '<span class="spinner"></span>');
+  if (!busy && spinner) spinner.remove();
 }
 
 function showWarnings(list: string[]) {
   els.warnings.innerHTML = '';
-  els.warnings.hidden = !list.length;
+  els.warnBox.hidden = !list.length;
+  els.warnBox.open = false;
+  els.warnCount.textContent = `${list.length} ${list.length === 1 ? 'попередження' : list.length < 5 ? 'попередження' : 'попереджень'}`;
   for (const w of list.slice(0, 50)) {
     const li = document.createElement('li');
     li.textContent = w;
     els.warnings.appendChild(li);
   }
+}
+
+function showResult(text: string | null) {
+  els.result.hidden = !text;
+  els.resultText.textContent = text ?? '';
+  // The result card replaces the status line (its text stays for screen readers / tests).
+  els.status.hidden = !!text;
 }
 
 /** Ukrainian plural: 1 слайд, 2 слайди, 5 слайдів */
@@ -115,7 +171,27 @@ function applySettings(s: Record<string, unknown>) {
   syncPresets();
 }
 
+const MODE_HINTS: Record<string, string> = {
+  auto: 'Презентацію буде розпізнано автоматично, решта — одна сторінка',
+  page: 'Уся сторінка — один фрейм',
+  slides: 'Кожен слайд — окремий фрейм у секції',
+};
+const TEXT_HINTS: Record<string, string> = {
+  exact: 'Рядки переносяться точно як у браузері',
+  paragraph: 'Абзаци з автопереносом — зручніше редагувати текст',
+};
+
+function syncSegments() {
+  for (const seg of document.querySelectorAll<HTMLElement>('.seg[data-bind]')) {
+    const select = document.getElementById(seg.dataset.bind!) as HTMLSelectElement;
+    for (const b of seg.querySelectorAll<HTMLButtonElement>('button')) b.setAttribute('aria-pressed', String(b.dataset.value === select.value));
+  }
+  els.modeHint.textContent = MODE_HINTS[els.mode.value] ?? '';
+  els.textHint.textContent = TEXT_HINTS[els.textMode.value] ?? '';
+}
+
 function syncPresets() {
+  syncSegments();
   for (const b of els.presets.querySelectorAll('button')) {
     b.classList.toggle('active', b.dataset.w === els.vw.value && (!('slides' in b.dataset) || b.dataset.h === els.vh.value));
   }
@@ -167,19 +243,24 @@ function prepareHtml(html: string, baseUrl: string, runScripts: boolean, slideSe
 
 function render() {
   ready = false;
+  detected = null;
   els.import.disabled = true;
   showWarnings([]);
-  els.bar.style.width = '0';
+  showResult(null);
+  setStep(-1);
   if (iframe) {
     iframe.remove();
     iframe = null;
   }
-  if (!source.trim()) {
-    els.previewEmpty.hidden = false;
+  const has = !!source.trim();
+  els.previewSection.hidden = !has;
+  els.clear.hidden = !has;
+  updateSourceUI();
+  if (!has) {
     setStatus('');
+    updateImportLabel();
     return;
   }
-  els.previewEmpty.hidden = true;
   const opts = options();
   iframe = document.createElement('iframe');
   // Opaque origin: page scripts (if enabled) can't reach the plugin.
@@ -190,6 +271,9 @@ function render() {
   iframe.style.height = `${opts.viewportHeight}px`;
   iframe.srcdoc = prepareHtml(source, els.baseUrl.value.trim(), els.scripts.checked, opts.slideSelector);
   els.scaler.appendChild(iframe);
+  els.shimmer.hidden = false;
+  els.kindBadge.hidden = true;
+  els.sizeBadge.hidden = true;
   layoutPreview();
   setStatus('Рендеринг сторінки…');
 }
@@ -200,7 +284,50 @@ function layoutPreview() {
   const scale = avail / opts.viewportWidth;
   els.scaler.style.transform = `scale(${scale})`;
   els.scaler.style.width = `${opts.viewportWidth}px`;
-  els.previewWrap.style.height = iframe ? `${Math.min(opts.viewportHeight * scale, 320)}px` : '';
+  els.previewWrap.style.height = iframe ? `${Math.round(Math.min(opts.viewportHeight * scale, 300))}px` : '';
+}
+
+function formatSize(bytes: number) {
+  return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+/** Source area: drop zone when empty, editors when open, a compact chip when loaded. */
+let editor: 'none' | 'code' | 'url' = 'none';
+function updateSourceUI() {
+  const has = !!source.trim();
+  els.drop.hidden = has || editor !== 'none';
+  els.codeEditor.hidden = editor !== 'code';
+  els.urlEditor.hidden = editor !== 'url';
+  els.sourceChip.hidden = !has || editor === 'code';
+  if (has) {
+    const title = detected?.title || sourceLabel.name || 'HTML';
+    els.sourceName.textContent = title;
+    const parts = [sourceLabel.origin, formatSize(new Blob([source]).size)].filter(Boolean);
+    els.sourceMeta.textContent = parts.join(' · ');
+  }
+  els.sourceHint.textContent = has ? '' : 'HTML-сторінка або презентація';
+}
+
+function openEditor(kind: 'none' | 'code' | 'url') {
+  editor = kind;
+  updateSourceUI();
+  if (kind === 'code') els.html.focus();
+  if (kind === 'url') els.url.focus();
+}
+
+function setSource(html: string, name: string, origin: string) {
+  source = html;
+  els.html.value = html;
+  sourceLabel = { name, origin };
+  autoSized = false;
+  if (editor !== 'code') editor = 'none';
+  render();
+}
+
+function updateImportLabel() {
+  const opts = options();
+  const slides = detected?.slides && opts.mode !== 'page' ? detected.slides : null;
+  els.importLabel.textContent = slides ? `Імпортувати ${slidesWord(slides.count)}` : 'Імпортувати у Figma';
 }
 
 let renderTimer = 0;
@@ -213,10 +340,11 @@ function scheduleRender(delay = 500) {
 
 function startCapture() {
   if (!iframe?.contentWindow || !ready || capturing) return;
-  capturing = true;
-  els.import.disabled = true;
+  setBusy(true);
   showWarnings([]);
-  setStatus('Підготовка…', false, 0.02);
+  showResult(null);
+  setStep(1, 0.05);
+  setStatus('Підготовка…');
   iframe.contentWindow.postMessage({ h2f: true, type: 'capture', options: options() }, '*');
 }
 
@@ -226,16 +354,19 @@ window.addEventListener('message', (e) => {
   if (data && data.pluginMessage) {
     const msg = data.pluginMessage as MainToUI;
     if (msg.type === 'settings') applySettings(msg.settings as Record<string, unknown>);
-    else if (msg.type === 'progress') setStatus(msg.message, false, msg.ratio !== undefined ? 0.5 + msg.ratio * 0.5 : undefined);
-    else if (msg.type === 'done') {
-      capturing = false;
-      els.import.disabled = false;
-      setStatus(msg.message, false, 1);
+    else if (msg.type === 'progress') {
+      setStep(3, msg.ratio ?? 0.1);
+      setStatus(msg.message);
+    } else if (msg.type === 'done') {
+      setBusy(false);
+      setStep(4);
+      setStatus(msg.message, 'ok');
+      showResult(`${msg.message.replace(/^Готово:\s*/, '')} — шари вже на полотні й виділені`);
       showWarnings(msg.warnings);
     } else if (msg.type === 'error') {
-      capturing = false;
-      els.import.disabled = false;
-      setStatus(msg.message, true, 0);
+      setBusy(false);
+      setStep(-1);
+      setStatus(msg.message, 'error');
     }
     return;
   }
@@ -255,93 +386,161 @@ window.addEventListener('message', (e) => {
       return;
     }
     ready = true;
+    detected = { slides, height: data.height, title: data.title || '' };
     els.import.disabled = false;
+    els.shimmer.hidden = true;
+    updateSourceUI();
+    updateImportLabel();
+    els.kindBadge.hidden = false;
+    els.sizeBadge.hidden = false;
     if (asSlides) {
-      setStatus(`Презентація${data.title ? ` «${data.title}»` : ''}: ${slidesWord(slides.count)} ${slides.width}×${slides.height}px — кожен стане окремим фреймом`);
-      els.import.textContent = `Імпортувати ${slidesWord(slides.count)} у Figma`;
+      els.kindText.textContent = `Презентація · ${slidesWord(slides.count)}`;
+      els.sizeBadge.textContent = `${slides.width} × ${slides.height}`;
+      setStatus('Кожен слайд стане окремим фреймом');
     } else {
-      if (opts.mode === 'slides') {
-        setStatus('Слайди не знайдено автоматично — вкажіть CSS-селектор слайдів у розширених налаштуваннях', true);
-      } else {
-        setStatus(`Сторінка готова${data.title ? `: «${data.title}»` : ''} · ${opts.viewportWidth}×${data.height}px`);
-      }
-      els.import.textContent = 'Імпортувати у Figma';
+      els.kindText.textContent = 'Сторінка';
+      els.sizeBadge.textContent = `${opts.viewportWidth} × ${data.height}`;
+      if (opts.mode === 'slides') setStatus('Слайди не знайдено — вкажіть CSS-селектор слайдів у розширених налаштуваннях', 'error');
+      else setStatus('Сторінка стане одним фреймом');
     }
   } else if (data.type === 'progress') {
-    setStatus(data.message, false, data.ratio !== undefined ? data.ratio * 0.5 : undefined);
+    const images = /Зображення/.test(data.message);
+    setStep(images ? 2 : 1, data.ratio ?? 0.3);
+    setStatus(data.message);
   } else if (data.type === 'error') {
-    capturing = false;
-    els.import.disabled = false;
-    setStatus(`Помилка аналізу сторінки: ${data.message}`, true, 0);
+    setBusy(false);
+    setStep(-1);
+    setStatus(`Помилка аналізу сторінки: ${data.message}`, 'error');
   } else if (data.type === 'result') {
     const result = data.result as CaptureResult;
-    setStatus('Створення шарів у Figma…', false, 0.5);
+    setStep(3, 0.05);
+    setStatus('Створення шарів у Figma…');
     toMain({ type: 'import', result, options: options() });
   }
 });
 
 // ---------- inputs ----------
 
-for (const tab of document.querySelectorAll<HTMLButtonElement>('.tab')) {
-  tab.addEventListener('click', () => {
-    for (const t of document.querySelectorAll<HTMLButtonElement>('.tab')) t.setAttribute('aria-selected', String(t === tab));
-    for (const p of document.querySelectorAll<HTMLElement>('.panel')) p.hidden = p.dataset.panel !== tab.dataset.tab;
-  });
-}
+const looksLikeHtml = (t: string) => /<\/?[a-z!][\s\S]*>/i.test(t);
 
 els.html.addEventListener('input', () => {
   source = els.html.value;
+  sourceLabel = { name: '', origin: 'вставлений код' };
   autoSized = false;
   scheduleRender();
 });
 
 async function loadFile(file: File) {
-  source = await file.text();
-  els.html.value = source;
-  els.fileInfo.textContent = `${file.name} · ${(file.size / 1024).toFixed(1)} KB`;
-  render();
+  setSource(await file.text(), file.name.replace(/\.x?html?$/i, ''), file.name);
 }
 
-els.drop.addEventListener('click', () => els.file.click());
+for (const b of document.querySelectorAll<HTMLButtonElement>('[data-source]')) {
+  b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const kind = b.dataset.source;
+    if (kind === 'file') els.file.click();
+    else openEditor(kind === 'url' ? 'url' : 'code');
+  });
+}
+for (const b of document.querySelectorAll<HTMLButtonElement>('[data-close-editor]')) {
+  b.addEventListener('click', () => openEditor('none'));
+}
+els.editCode.addEventListener('click', () => openEditor('code'));
+els.demo.addEventListener('click', (e) => {
+  e.stopPropagation();
+  setSource(DEMO_HTML, 'Демо-презентація', 'вбудований приклад');
+});
+els.clear.addEventListener('click', () => {
+  els.html.value = '';
+  els.file.value = '';
+  editor = 'none';
+  setSource('', '', '');
+});
 els.file.addEventListener('change', () => {
   const f = els.file.files?.[0];
   if (f) loadFile(f);
 });
-els.drop.addEventListener('dragover', (e) => {
+
+// Drag a file anywhere into the plugin window.
+let dragDepth = 0;
+const hasFiles = (e: DragEvent) => !!e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+window.addEventListener('dragenter', (e) => {
+  if (!hasFiles(e)) return;
   e.preventDefault();
+  dragDepth++;
+  els.dropOverlay.hidden = false;
   els.drop.classList.add('over');
 });
-els.drop.addEventListener('dragleave', () => els.drop.classList.remove('over'));
-els.drop.addEventListener('drop', (e) => {
+window.addEventListener('dragover', (e) => {
+  if (hasFiles(e)) e.preventDefault();
+});
+window.addEventListener('dragleave', () => {
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (!dragDepth) {
+    els.dropOverlay.hidden = true;
+    els.drop.classList.remove('over');
+  }
+});
+window.addEventListener('drop', (e) => {
   e.preventDefault();
+  dragDepth = 0;
+  els.dropOverlay.hidden = true;
   els.drop.classList.remove('over');
   const f = e.dataTransfer?.files?.[0];
   if (f) loadFile(f);
 });
 
-els.fetchUrl.addEventListener('click', async () => {
+// Paste HTML anywhere (outside text fields).
+document.addEventListener('paste', (e) => {
+  const target = e.target as HTMLElement;
+  if (target.closest('input, textarea')) return;
+  const text = e.clipboardData?.getData('text/plain') || e.clipboardData?.getData('text/html') || '';
+  if (!looksLikeHtml(text)) {
+    setStatus('У буфері обміну немає HTML-коду', 'error');
+    return;
+  }
+  e.preventDefault();
+  setSource(text, '', 'вставлений код');
+});
+
+// ⌘/Ctrl + Enter imports.
+document.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    e.preventDefault();
+    startCapture();
+  }
+  if (e.key === 'Escape' && editor !== 'none' && source.trim()) openEditor('none');
+});
+
+async function fetchUrl() {
   const url = els.url.value.trim();
   if (!url) return;
   setStatus('Завантаження сторінки…');
+  els.fetchUrl.disabled = true;
   const proxy = els.proxy.value.trim();
   const attempts = [url, ...(proxy ? [proxy + encodeURIComponent(url)] : [])];
-  for (const u of attempts) {
-    try {
-      const res = await fetch(u);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      source = await res.text();
-      els.html.value = source;
-      if (!els.baseUrl.value.trim()) els.baseUrl.value = url;
-      render();
-      return;
-    } catch {
-      /* try next */
+  try {
+    for (const u of attempts) {
+      try {
+        const res = await fetch(u);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const text = await res.text();
+        if (!els.baseUrl.value.trim()) els.baseUrl.value = url;
+        editor = 'none';
+        setSource(text, new URL(url).hostname, url);
+        return;
+      } catch {
+        /* try next */
+      }
     }
+    setStatus('Не вдалося завантажити сторінку (ймовірно, CORS). Вкажіть CORS-проксі в розширених налаштуваннях або збережіть сторінку як .html.', 'error');
+  } finally {
+    els.fetchUrl.disabled = false;
   }
-  setStatus(
-    'Не вдалося завантажити сторінку (ймовірно, CORS). Вкажіть CORS-проксі в розширених налаштуваннях або збережіть сторінку як .html і відкрийте як файл.',
-    true,
-  );
+}
+els.fetchUrl.addEventListener('click', fetchUrl);
+els.url.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') fetchUrl();
 });
 
 for (const b of els.presets.querySelectorAll<HTMLButtonElement>('button')) {
@@ -351,6 +550,16 @@ for (const b of els.presets.querySelectorAll<HTMLButtonElement>('button')) {
     saveSettings();
     render();
   });
+}
+for (const seg of document.querySelectorAll<HTMLElement>('.seg[data-bind]')) {
+  const select = document.getElementById(seg.dataset.bind!) as HTMLSelectElement;
+  for (const b of seg.querySelectorAll<HTMLButtonElement>('button')) {
+    b.addEventListener('click', () => {
+      if (select.value === b.dataset.value) return;
+      select.value = b.dataset.value!;
+      select.dispatchEvent(new Event('change'));
+    });
+  }
 }
 for (const input of [els.vw, els.vh]) {
   input.addEventListener('change', () => {
@@ -368,4 +577,29 @@ for (const input of [els.scripts, els.baseUrl, els.mode, els.slideSelector]) {
 els.refresh.addEventListener('click', render);
 els.import.addEventListener('click', startCapture);
 window.addEventListener('resize', layoutPreview);
+
+// Resize the plugin window by dragging the corner grip.
+els.grip.addEventListener('pointerdown', (e) => {
+  const start = { x: e.clientX, y: e.clientY, w: window.innerWidth, h: window.innerHeight };
+  els.grip.setPointerCapture(e.pointerId);
+  const move = (ev: PointerEvent) => {
+    const width = Math.max(360, Math.min(900, start.w + ev.clientX - start.x));
+    const height = Math.max(480, Math.min(1100, start.h + ev.clientY - start.y));
+    toMain({ type: 'resize', width, height });
+  };
+  const up = () => {
+    els.grip.removeEventListener('pointermove', move);
+    els.grip.removeEventListener('pointerup', up);
+  };
+  els.grip.addEventListener('pointermove', move);
+  els.grip.addEventListener('pointerup', up);
+});
+
+// Shortcut hints match the platform.
+if (!/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)) {
+  document.getElementById('importKbd')!.textContent = 'Ctrl ↵';
+  document.getElementById('pasteKbd')!.textContent = 'Ctrl V';
+}
+
 syncPresets();
+updateSourceUI();

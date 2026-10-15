@@ -524,7 +524,7 @@
 
   // src/main/code.ts
   var send = (msg) => figma.ui.postMessage(msg);
-  figma.showUI(__html__, { width: 440, height: 680, themeColors: true });
+  figma.showUI(__html__, { width: 420, height: 720, themeColors: true });
   figma.clientStorage.getAsync("settings").then((settings) => {
     if (settings) send({ type: "settings", settings });
   });
