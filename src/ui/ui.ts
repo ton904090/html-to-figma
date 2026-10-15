@@ -117,7 +117,7 @@ function applySettings(s: Record<string, unknown>) {
 
 function syncPresets() {
   for (const b of els.presets.querySelectorAll('button')) {
-    b.classList.toggle('active', b.dataset.w === els.vw.value);
+    b.classList.toggle('active', b.dataset.w === els.vw.value && (!('slides' in b.dataset) || b.dataset.h === els.vh.value));
   }
 }
 
